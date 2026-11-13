@@ -136,30 +136,13 @@ function notesMarkup(limit) {
   return `<div class="note-list">${notes.map(n => `<article class="note-card"><span class="eyebrow">${n.type} · ${n.author}</span><p>${escapeHtml(n.text)}</p><time>${n.time}</time></article>`).join('')}</div>`;
 }
 
-const dutyTrack = '<span class="duty-track" aria-hidden="true"><i></i></span>';
-
-function slideDutySwitch(button, position, finish) {
-  if (button.disabled) return;
-  button.disabled = true;
-  const knob = button.querySelector('.duty-track i');
-  const track = knob.parentElement;
-  const travel = track.clientWidth - knob.offsetWidth - 2 * parseFloat(getComputedStyle(track).paddingLeft);
-  if (!window.gsap || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    finish();
-    return;
-  }
-  gsap.to(knob, { x: travel * position / 20, duration: 0.32, ease: 'power2.inOut', onComplete() {
-    if (button.isConnected) finish();
-  } });
-}
-
 function home() {
   const caregiver = currentCaregiver();
   const previous = state.handoverHistory[0]?.from;
   const plan = state.handoverPlan;
   return shell(`<header class="duty-header">
       <div><small>${plan.ready ? 'Next caregiver' : 'On duty'}</small><h1>${plan.ready ? plan.to : caregiver}</h1></div>
-      <button id="duty-status" class="shift-switch ${plan.ready ? 'pending' : 'active'}">${dutyTrack}<span class="duty-action">${plan.ready ? 'Go on duty' : 'Go off duty'}</span></button>
+      <button type="button" id="duty-status">${plan.ready ? 'Go on duty' : 'Go off duty'}</button>
     </header>
     <div class="shift-context"><button data-route="profile">Caring for Mary Tan ›</button>
       <small>${plan.ready ? caregiver + ' on duty' : previous ? previous + ' off duty' : ''}</small>
@@ -258,7 +241,7 @@ function handover() {
       <div class="section-head"><h2>Next handover</h2></div>
       <div class="field"><label for="shift-next">Next caregiver</label><select id="shift-next" name="next">${options}</select></div>
       <div class="field"><label for="shift-time">Takeover time</label><input id="shift-time" name="scheduled" type="datetime-local" required value="${plan.scheduled || defaultScheduleValue()}"></div>
-      <button class="primary shift-switch">${dutyTrack}Save notes &amp; request takeover</button></section>
+      <button class="primary">Save notes &amp; request takeover</button></section>
     </form>
     ${state.handoverHistory.length ? '<div class="actions"><button class="secondary" id="undo-handover">Undo last takeover</button></div>' : ''}`, 'home');
 
@@ -434,15 +417,13 @@ function bind() {
   const dutyStatus = app.querySelector('#duty-status');
   if (dutyStatus) dutyStatus.addEventListener('click', () => {
     const plan = state.handoverPlan;
-    if (!plan.ready) return slideDutySwitch(dutyStatus, 0, () => go('plan-handover'));
-    slideDutySwitch(dutyStatus, 20, () => {
-      state.handoverHistory.unshift({ from: currentCaregiver(), to: plan.to, scheduled: plan.scheduled, time: new Date().toLocaleString('en') });
-      state.handoverPlan = { from: plan.to, to: nextCaregiver(plan.to), scheduled: defaultScheduleValue() };
-      state.handoverOpen = false;
-      state.handoverConfirmed = true;
-      save();
-      render();
-    });
+    if (!plan.ready) return go('plan-handover');
+    state.handoverHistory.unshift({ from: currentCaregiver(), to: plan.to, scheduled: plan.scheduled, time: new Date().toLocaleString('en') });
+    state.handoverPlan = { from: plan.to, to: nextCaregiver(plan.to), scheduled: defaultScheduleValue() };
+    state.handoverOpen = false;
+    state.handoverConfirmed = true;
+    save();
+    render();
   });
   const shiftForm = app.querySelector('#shift-form');
   if (shiftForm) stopVoiceGuide = bindVoiceGuide(shiftForm);
@@ -456,14 +437,12 @@ function bind() {
       fields.note.reportValidity();
       return;
     }
-    slideDutySwitch(shiftForm.querySelector('.shift-switch'), 10, () => {
-      state.notes.unshift({ type: 'Handover', text: note, author: currentCaregiver(), time: new Date().toLocaleString('en') });
-      state.handoverPlan = { from: currentCaregiver(), to: fields.next.value, scheduled: fields.scheduled.value, ready: true };
-      state.handoverOpen = true;
-      state.handoverConfirmed = false;
-      save();
-      go('home');
-    });
+    state.notes.unshift({ type: 'Handover', text: note, author: currentCaregiver(), time: new Date().toLocaleString('en') });
+    state.handoverPlan = { from: currentCaregiver(), to: fields.next.value, scheduled: fields.scheduled.value, ready: true };
+    state.handoverOpen = true;
+    state.handoverConfirmed = false;
+    save();
+    go('home');
   });
   const timeline = app.querySelector(".focus-timeline");
   if (timeline) bindTimeline(timeline);
