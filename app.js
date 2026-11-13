@@ -136,18 +136,33 @@ function notesMarkup(limit) {
   return `<div class="note-list">${notes.map(n => `<article class="note-card"><span class="eyebrow">${n.type} · ${n.author}</span><p>${escapeHtml(n.text)}</p><time>${n.time}</time></article>`).join('')}</div>`;
 }
 
+const dutyTrack = '<span class="duty-track" aria-hidden="true"><i></i></span>';
+
+function slideDutySwitch(button, position, finish) {
+  if (button.disabled) return;
+  button.disabled = true;
+  const knob = button.querySelector('.duty-track i');
+  const track = knob.parentElement;
+  const travel = track.clientWidth - knob.offsetWidth - 2 * parseFloat(getComputedStyle(track).paddingLeft);
+  if (!window.gsap || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    finish();
+    return;
+  }
+  gsap.to(knob, { x: travel * position / 20, duration: 0.32, ease: 'power2.inOut', onComplete() {
+    if (button.isConnected) finish();
+  } });
+}
+
 function home() {
   const caregiver = currentCaregiver();
   const previous = state.handoverHistory[0]?.from;
   const plan = state.handoverPlan;
   return shell(`<header class="duty-header">
-      <div><small>Current caregiver</small><h1>${caregiver}</h1></div>
-      <button id="duty-status" aria-label="${plan.requested ? 'Review pending handover' : 'On duty. Request handover'}">${plan.requested ? 'Awaiting takeover' : 'On duty'} ›</button>
+      <div><small>${plan.ready ? 'Next caregiver' : 'On duty'}</small><h1>${plan.ready ? plan.to : caregiver}</h1></div>
+      <button id="duty-status" class="shift-switch ${plan.ready ? 'pending' : 'active'}">${dutyTrack}<span class="duty-action">${plan.ready ? 'Go on duty' : 'Go off duty'}</span></button>
     </header>
-    <div class="duty-details">
-      ${previous ? `<div class="resting-caregiver"><span>On break</span><strong>${previous}</strong></div>` : ''}
-      <button data-route="plan-handover"><span>Next handover</span><strong>${state.handoverOpen ? plan.to + ' · ' + formatSchedule(plan.scheduled) : 'Plan next handover'} ›</strong></button>
-      <button data-route="profile"><span>Care recipient</span><strong>Mary Tan ›</strong></button>
+    <div class="shift-context"><button data-route="profile">Caring for Mary Tan ›</button>
+      <small>${plan.ready ? caregiver + ' on duty' : previous ? previous + ' off duty' : ''}</small>
     </div>
     <div class="section-head"><h2>Today</h2><button data-route="week">View week</button></div>
     <ol class="focus-timeline" aria-label="Daily tasks" tabindex="0">${demoTasks.map(timelineRow).join('')}</ol>
@@ -180,10 +195,9 @@ function taskDetail(id) {
 
 function items() {
   return shell(`${topbar('Care items')}
-    <p class="demo-banner">In the physical prototype, tapping an NFC tag opens the matching item page directly.</p>
-    <div class="task-list">
-      <button class="task-row" data-route="item-medication"><span class="task-icon">◇</span><span><span class="task-name">Medication</span><span class="task-meta">NFC-tagged container</span></span><span class="chevron">›</span></button>
-      <button class="task-row" data-route="item-water"><span class="task-icon">◯</span><span><span class="task-name">Water bottle</span><span class="task-meta">NFC-tagged bottle</span></span><span class="chevron">›</span></button>
+    <div class="item-grid">
+      <button class="item-tile" data-route="item-medication"><span class="item-art" aria-hidden="true">💊</span><strong>Medication</strong><small>Pill container</small></button>
+      <button class="item-tile" data-route="item-water"><span class="item-art" aria-hidden="true">💧</span><strong>Water bottle</strong><small>Warm water</small></button>
     </div>`, 'items');
 }
 
@@ -212,39 +226,42 @@ function notes() {
 }
 
 function careGuide() {
+  const cues = [
+    ['💬', 'Conversation', 'Introduce yourself in Mandarin. Speak briefly and wait.'],
+    ['🍚', 'Meals', 'Remind her to start. She eats independently.'],
+    ['🚶', 'Walking', 'Independent at home. Join her 5 pm walk.'],
+    ['💊', 'Medication', 'Managed by her caregiver.'],
+    ['🕒', 'Routine', 'Keep meal and sleep times familiar. Explain changes early.']
+  ];
   return shell(`${topbar('Care Guide')}
-    <header class="guide-intro"><h2>Mary Tan</h2><p>Prefers Mandarin, home-cooked Chinese meals and warm water.</p></header>
-    <section class="guide-section"><h3>Meeting Mary</h3><ul>
-      <li>Introduce yourself and explain what comes next.</li>
-      <li>Use short sentences. Give her time to reply.</li>
-    </ul></section>
-    <section class="guide-section"><h3>Everyday support</h3><dl>
-      <div><dt>Meals</dt><dd>Eats independently. May need a reminder to start.</dd></div>
-      <div><dt>Walking</dt><dd>Walks independently at home. Join her for her 5 pm walk outdoors.</dd></div>
-      <div><dt>Medication</dt><dd>A caregiver manages her medication.</dd></div>
-    </dl></section>
-    <section class="guide-section"><h3>Changes to her routine</h3><p>Keep her usual meal and sleep times. Explain changes in advance.</p></section>`, 'care-guide');
+    <header class="guide-intro"><h2>Mary Tan</h2><div class="guide-preferences">
+      <span><i aria-hidden="true">🥢</i> Chinese home cooking</span>
+      <span><i aria-hidden="true">☕</i> Warm water</span>
+    </div></header>
+    <ul class="guide-cues">${cues.map(([icon, title, cue]) => `<li>
+      <span class="cue-icon" aria-hidden="true">${icon}</span>
+      <div><h3>${title}</h3><p>${cue}</p></div>
+    </li>`).join('')}</ul>`, 'care-guide');
 }
 
 function handover() {
-  const unfinished = demoTasks.filter(t => !state.completed[t.id]);
-  const latest = state.handoverHistory[0];
   const plan = state.handoverPlan;
-  const teamOptions = careTeam.filter(name => name !== currentCaregiver()).map(name => `<option value="${name}" ${name === plan.to ? 'selected' : ''}>${name}</option>`).join('');
-  return shell(`${topbar('Handover')}
-    <div class="card ${state.handoverConfirmed ? 'handover-confirmed' : ''}"><span class="eyebrow">${state.handoverConfirmed ? 'CURRENT CAREGIVER' : 'UPCOMING HANDOVER'}</span><h2>${state.handoverConfirmed ? `${currentCaregiver()} is now responsible` : `${currentCaregiver()} → ${plan.to}`}</h2><p>${state.handoverConfirmed ? `${latest.from} handed over to ${latest.to} at ${latest.time}.` : `Expected handover: ${formatSchedule(plan.scheduled)}`}</p></div>
-    ${state.handoverOpen ? `<div class="handover-planner">
-      <div class="field"><label for="next-caregiver">Next caregiver</label><select id="next-caregiver">${teamOptions}</select></div>
-      <div class="field"><label for="handover-time">Expected handover time</label><input id="handover-time" type="datetime-local" value="${plan.scheduled}"></div>
-    </div>
-    <div class="preview-card"><span class="eyebrow">PREVIEW FOR ${plan.to.toUpperCase()}</span><h3>${unfinished.length} unfinished tasks</h3><p>${state.notes.length} recent updates are ready to review before taking over.</p><strong>${formatSchedule(plan.scheduled)}</strong></div>` : ''}
-    <div class="section-head"><h2>Unfinished tasks</h2></div>
-    <div class="task-list">${unfinished.length ? unfinished.map(taskRow).join('') : '<p class="empty">All scheduled tasks are complete.</p>'}</div>
-    <div class="section-head"><h2>Recent updates</h2><button data-route="notes">View all</button></div>${notesMarkup(2)}
-    ${latest ? `<div class="section-head"><h2>Handover record</h2></div><div class="handover-record"><span class="record-mark">✓</span><div><strong>${latest.from} → ${latest.to}</strong><span>${latest.time} · Confirmed by ${latest.to}</span></div></div>` : ''}
-    <div class="actions">
-      ${state.handoverOpen ? `<button class="primary" id="confirm-handover">Confirm ${plan.to}'s takeover</button>` : `<button class="primary" id="start-next-handover">Plan next handover</button><button class="danger-button" id="undo-handover">Undo last takeover</button><p class="action-help">Undo returns responsibility to ${latest.from}. Task and update records stay unchanged.</p>`}
-    </div>`, 'home');
+  if (plan.ready) return home();
+  const options = careTeam.filter(name => name !== currentCaregiver()).map(name =>
+    `<option ${name === plan.to ? 'selected' : ''}>${name}</option>`).join('');
+  return shell(`${topbar('Go off duty')}
+    <form id="shift-form">
+      <section id="voice-guide"></section>
+      <section id="shift-review" hidden>
+      <div class="field"><label for="shift-note">Review handover notes</label>
+        <textarea id="shift-note" name="note" rows="5" disabled required></textarea></div>
+      <div class="section-head"><h2>Next handover</h2></div>
+      <div class="field"><label for="shift-next">Next caregiver</label><select id="shift-next" name="next">${options}</select></div>
+      <div class="field"><label for="shift-time">Takeover time</label><input id="shift-time" name="scheduled" type="datetime-local" required value="${plan.scheduled || defaultScheduleValue()}"></div>
+      <button class="primary shift-switch">${dutyTrack}Save notes &amp; request takeover</button></section>
+    </form>
+    ${state.handoverHistory.length ? '<div class="actions"><button class="secondary" id="undo-handover">Undo last takeover</button></div>' : ''}`, 'home');
+
 }
 
 function week() {
@@ -253,13 +270,18 @@ function week() {
   const isToday = day.dateKey === localDateKey(new Date());
   const completedCount = isToday ? demoTasks.filter(task => state.completed[task.id]).length : 0;
   const caregiver = isToday ? currentCaregiver() : ['May', 'May', 'Li', 'Li', 'May', 'Li', 'May'][selectedWeekDay];
-  const rows = isToday
-    ? demoTasks.map(taskRow).join('')
-    : demoTasks.map(task => `<div class="task-row planned">
-        <span class="task-icon">${task.icon}</span>
-        <span><span class="task-name">${task.name}</span><span class="task-meta">${task.meta}</span></span>
-        <span class="task-time">${task.time}</span>
-      </div>`).join('');
+  const rows = demoTasks.map(task => {
+    const done = isToday && state.completed[task.id];
+    const content = `<span class="task-name">${task.name}</span><span class="task-meta">${task.meta}</span>`;
+    const card = isToday
+      ? `<button class="week-task-card" data-task="${task.id}">${content}</button>`
+      : `<div class="week-task-card">${content}</div>`;
+    return `<li class="week-event${done ? ' finished' : ''}">
+      <time>${task.time}</time>
+      <span class="week-marker" aria-hidden="true">${done ? '✓' : task.icon}</span>
+      ${done ? '<span class="week-completed">Completed</span>' : ''}${card}
+    </li>`;
+  }).join('');
 
   return shell(`${topbar('This week')}
     <div class="week-strip" aria-label="Choose a day">
@@ -276,7 +298,7 @@ function week() {
       <div class="progress-track"><span style="width:${isToday ? completedCount / demoTasks.length * 100 : 0}%"></span></div>
     </div>
     <div class="section-head"><h2>Schedule</h2><span class="eyebrow">${isToday ? 'Tap a task for details' : 'Planned tasks'}</span></div>
-    <div class="task-list">${rows}</div>
+    <ol class="week-timeline">${rows}</ol>
     <div class="card week-note"><h3>Daily care notes</h3><p><strong>Medication:</strong> follow the stated meal timing and verify the correct container.</p><p><strong>Water:</strong> offer warm water and return the bottle within comfortable reach.</p><p><strong>Evening:</strong> record any change in mood, comfort or routine for the next caregiver.</p></div>
     <div class="demo-banner">This weekly schedule uses demonstration content. The family must replace it with verified care and medication instructions.</div>`, 'home');
 }
@@ -311,7 +333,87 @@ function escapeHtml(value) {
   return value.replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
 }
 
+let stopVoiceGuide;
+function bindVoiceGuide(form) {
+  const panel = form.querySelector('#voice-guide');
+  const review = form.querySelector('#shift-review');
+  const prompts = [
+    ['Shift update', 'How was Mary during your shift?'],
+    ['Next shift', 'What should the next caregiver follow up on?']
+  ];
+  const answers = ['', ''];
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let step = 0;
+  let recognition;
+
+  function stop() {
+    if (recognition) {
+      recognition.onresult = recognition.onend = recognition.onerror = null;
+      recognition.abort();
+      recognition = null;
+    }
+  }
+  function question() {
+    panel.innerHTML = `<small>Handover notes · ${step + 1} of 2</small>
+      <h2>${prompts[step][1]}</h2>
+      <div class="answer-composer">
+        <textarea id="shift-answer" aria-label="Your answer" rows="3" placeholder="${step ? 'Add a follow-up (optional)' : 'Type your update here'}"></textarea>
+        ${Recognition ? '<button type="button" data-record aria-label="Speak answer" title="Speak answer"><span aria-hidden="true" class="mic-glyph"></span></button>' : ''}
+      </div>
+      <small role="status"></small>
+      <button type="button" class="primary" data-next>${step ? 'Review notes' : 'Next question'}</button>`;
+    const input = panel.querySelector('textarea');
+    const record = panel.querySelector('[data-record]');
+    const next = panel.querySelector('[data-next]');
+    const status = panel.querySelector('[role=status]');
+    if (!Recognition) status.textContent = 'Voice input is unavailable in this browser. You can type your answer.';
+    if (record) record.onclick = () => {
+      if (recognition) { recognition.stop(); return; }
+      const session = new Recognition();
+      recognition = session;
+      session.lang = 'en-SG';
+      session.onresult = event => {
+        input.value = [input.value.trim(), event.results[event.resultIndex][0].transcript].filter(Boolean).join(' ');
+      };
+      session.onerror = () => { status.textContent = 'Couldn’t transcribe. Try again or type your answer.'; };
+      session.onend = () => {
+        recognition = null;
+        record.setAttribute('aria-label', 'Speak answer');
+        record.title = 'Speak answer';
+        next.disabled = false;
+        if (status.textContent === 'Listening…') status.textContent = 'Check your answer before continuing.';
+      };
+      try {
+        session.start();
+        record.setAttribute('aria-label', 'Stop listening');
+        record.title = 'Stop listening';
+        status.textContent = 'Listening…';
+        next.disabled = true;
+      } catch { session.onerror(); session.onend(); }
+    };
+    next.onclick = () => {
+      answers[step] = input.value.trim();
+      if (!step && !answers[0]) { status.textContent = 'Add a spoken or typed shift update to continue.'; input.focus(); return; }
+      stop();
+      if (!step) {
+        step++;
+        question();
+      } else {
+        panel.hidden = true;
+        review.hidden = false;
+        form.elements.note.disabled = false;
+        form.elements.note.value = answers.map((answer, i) => answer && prompts[i][0] + ' — ' + answer).filter(Boolean).join('\n');
+        form.elements.note.focus();
+      }
+    };
+  }
+  question();
+  return stop;
+}
+
 function render() {
+  stopVoiceGuide?.();
+  stopVoiceGuide = null;
   const route = (location.hash.slice(1) || 'home').split('?')[0];
   if (route === 'profile') app.innerHTML = profile();
   else if (route.startsWith('task-')) app.innerHTML = taskDetail(route.slice(5));
@@ -331,11 +433,37 @@ function render() {
 function bind() {
   const dutyStatus = app.querySelector('#duty-status');
   if (dutyStatus) dutyStatus.addEventListener('click', () => {
-    state.handoverOpen = true;
-    state.handoverConfirmed = false;
-    state.handoverPlan.requested = true;
-    save();
-    go('plan-handover');
+    const plan = state.handoverPlan;
+    if (!plan.ready) return slideDutySwitch(dutyStatus, 0, () => go('plan-handover'));
+    slideDutySwitch(dutyStatus, 20, () => {
+      state.handoverHistory.unshift({ from: currentCaregiver(), to: plan.to, scheduled: plan.scheduled, time: new Date().toLocaleString('en') });
+      state.handoverPlan = { from: plan.to, to: nextCaregiver(plan.to), scheduled: defaultScheduleValue() };
+      state.handoverOpen = false;
+      state.handoverConfirmed = true;
+      save();
+      render();
+    });
+  });
+  const shiftForm = app.querySelector('#shift-form');
+  if (shiftForm) stopVoiceGuide = bindVoiceGuide(shiftForm);
+  if (shiftForm) shiftForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const fields = shiftForm.elements;
+    if (fields.note.disabled) return;
+    const note = fields.note.value.trim();
+    if (!note) {
+      fields.note.value = '';
+      fields.note.reportValidity();
+      return;
+    }
+    slideDutySwitch(shiftForm.querySelector('.shift-switch'), 10, () => {
+      state.notes.unshift({ type: 'Handover', text: note, author: currentCaregiver(), time: new Date().toLocaleString('en') });
+      state.handoverPlan = { from: currentCaregiver(), to: fields.next.value, scheduled: fields.scheduled.value, ready: true };
+      state.handoverOpen = true;
+      state.handoverConfirmed = false;
+      save();
+      go('home');
+    });
   });
   const timeline = app.querySelector(".focus-timeline");
   if (timeline) bindTimeline(timeline);
@@ -355,29 +483,6 @@ function bind() {
     state.notes.unshift({ type: document.querySelector('#note-type').value, text, author: currentCaregiver(), time: 'Just now' });
     save(); go('notes'); setTimeout(() => showToast('Update saved'), 40);
   });
-  const confirm = document.querySelector('#confirm-handover');
-  if (confirm && state.handoverOpen) confirm.addEventListener('click', () => {
-    const nextName = document.querySelector('#next-caregiver').value;
-    const scheduledValue = document.querySelector('#handover-time').value;
-    const record = {
-      from: currentCaregiver(),
-      to: nextName,
-      time: new Date().toLocaleString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-      scheduled: scheduledValue
-    };
-    state.handoverHistory.unshift(record);
-    state.handoverOpen = false;
-    state.handoverConfirmed = true;
-    state.handoverPlan = { from: nextName, to: nextCaregiver(nextName), scheduled: defaultScheduleValue() };
-    save(); go('home'); showToast(`${nextName} is on duty. ${record.from} is on break.`);
-  });
-  const startNextHandover = document.querySelector('#start-next-handover');
-  if (startNextHandover) startNextHandover.addEventListener('click', () => {
-    state.handoverOpen = true;
-    state.handoverConfirmed = false;
-    state.handoverPlan = { from: currentCaregiver(), to: nextCaregiver(currentCaregiver()), scheduled: defaultScheduleValue() };
-    save(); render(); showToast('Next handover is ready to plan');
-  });
   const undoHandover = document.querySelector('#undo-handover');
   if (undoHandover) undoHandover.addEventListener('click', () => {
     const undone = state.handoverHistory.shift();
@@ -386,17 +491,6 @@ function bind() {
     state.handoverPlan = { from: currentCaregiver(), to: undone.to, scheduled: undone.scheduled || defaultScheduleValue() };
     const restoredName = currentCaregiver();
     save(); render(); showToast(`Takeover undone. ${restoredName} is responsible again`);
-  });
-  const nextSelect = document.querySelector('#next-caregiver');
-  if (nextSelect) nextSelect.addEventListener('change', () => {
-    state.handoverPlan.to = nextSelect.value;
-    state.handoverPlan.scheduled = document.querySelector('#handover-time').value;
-    save(); render();
-  });
-  const handoverTime = document.querySelector('#handover-time');
-  if (handoverTime) handoverTime.addEventListener('change', () => {
-    state.handoverPlan.scheduled = handoverTime.value;
-    save(); render();
   });
   document.querySelectorAll('[data-day]').forEach(el => el.addEventListener('click', () => {
     selectedWeekDay = Number(el.dataset.day);
