@@ -1,20 +1,31 @@
+const persona = {
+  name: 'Mary Tan',
+  age: 76,
+  location: 'Singapore',
+  condition: "Moderate Alzheimer’s disease",
+  living: 'Lives with her daughter',
+  mainCaregiver: 'Daughter',
+  otherCaregiver: 'Part-time helper'
+};
+
 const itemTasks = [
-  { id: 'med-am', group: 'medication', name: 'Morning medication', meta: '8:00 AM · After breakfast', time: '8:00 AM', icon: '◇' },
-  { id: 'med-noon', group: 'medication', name: 'Afternoon medication', meta: '1:00 PM · After lunch', time: '1:00 PM', icon: '◇' },
-  { id: 'water', group: 'water', name: 'Refill water bottle', meta: 'Offer warm water', time: '3:00 PM', icon: '◯' },
-  { id: 'med-pm', group: 'medication', name: 'Evening medication', meta: '8:00 PM · After dinner', time: '8:00 PM', icon: '◇' },
-  { id: 'check', group: 'check', name: 'Evening check-in', meta: 'Mood and comfort', time: '8:30 PM', icon: '□' }
+  { id: 'med-am', group: 'medication', name: 'Morning medication', meta: 'Caregiver managed · After breakfast', time: '08:30', icon: '◇', support: 'Managed', guidance: 'Verify the correct medicine and current family instruction before assisting Mary.' },
+  { id: 'water', group: 'water', name: 'Warm water', meta: 'Refill her familiar bottle', time: '15:00', icon: '◯', support: 'Reminder', guidance: 'Fill Mary’s familiar bottle with warm water and return it to its usual place.' },
+  { id: 'med-pm', group: 'medication', name: 'Evening medication', meta: 'Caregiver managed · After dinner', time: '19:00', icon: '◇', support: 'Managed', guidance: 'Verify the correct medicine and current family instruction before assisting Mary.' }
 ];
 
 const demoTasks = [
   { id: 'wake', time: '07:30', name: 'Wake up & wash', meta: 'Give Mary a reminder', group: 'morning', icon: '☀' },
-  { id: 'breakfast', time: '08:00', name: 'Breakfast', meta: 'Stay nearby while she eats', group: 'meal', icon: '♨' },
+  { id: 'breakfast', time: '08:00', name: 'Breakfast', meta: 'Stay nearby while she eats', group: 'meal', icon: '♨', support: 'Supervision', guidance: 'Offer a familiar Chinese home-cooked breakfast and warm water.' },
+  { ...itemTasks[0] },
   { id: 'garden', time: '09:30', name: 'Gardening or light activity', meta: 'Stay nearby', group: 'activity', icon: '✿' },
-  { id: 'lunch', time: '12:30', name: 'Lunch', meta: 'Remind Mary it’s time to eat', group: 'meal', icon: '♨' },
+  { id: 'lunch', time: '12:30', name: 'Lunch', meta: 'Remind Mary it’s time to eat', group: 'meal', icon: '♨', support: 'Reminder', guidance: 'Keep the usual mealtime and familiar meal setting.' },
   { id: 'rest', time: '14:00', name: 'Afternoon rest', meta: 'Independent', group: 'rest', icon: '☾' },
-  { id: 'walk', time: '17:00', name: 'Short walk', meta: 'Go outside with Mary', group: 'activity', icon: '↗' },
+  { ...itemTasks[1] },
+  { id: 'walk', time: '17:00', name: 'Short walk', meta: 'Go outside with Mary', group: 'activity', icon: '↗', support: 'Accompanied', guidance: 'Stay with Mary outdoors and use a familiar route.' },
   { id: 'dinner', time: '18:30', name: 'Dinner', meta: 'Stay nearby while she eats', group: 'meal', icon: '♨' },
-  { id: 'bed', time: '21:00', name: 'Prepare for bed', meta: 'Help Mary get ready', group: 'rest', icon: '☾' }
+  { ...itemTasks[2] },
+  { id: 'bed', time: '21:00', name: 'Prepare for bed', meta: 'Help Mary get ready', group: 'rest', icon: '☾', support: 'Assistance', guidance: 'Use short sentences, explain each step and keep her familiar bedtime sequence.' }
 ];
 
 function timelineRow(task) {
@@ -53,16 +64,17 @@ function bindTimeline(list) {
   });
 }
 
-const careTeam = ['May', 'Li', 'Anna'];
-const storedHandoverHistory = JSON.parse(localStorage.getItem('careReadyHandoverHistory') || '[]');
-const initialCurrentCaregiver = storedHandoverHistory.length ? storedHandoverHistory[0].to : 'May';
+const careTeam = ['Daughter', 'Part-time helper'];
+const storagePrefix = 'careReadyMary';
+const storedHandoverHistory = JSON.parse(localStorage.getItem(`${storagePrefix}HandoverHistory`) || '[]');
+const initialCurrentCaregiver = storedHandoverHistory.length ? storedHandoverHistory[0].to : 'Daughter';
 
 const state = {
-  completed: JSON.parse(localStorage.getItem('careReadyCompleted') || '{}'),
-  notes: JSON.parse(localStorage.getItem('careReadyNotes') || '[{"type":"Routine update","text":"Ate well at lunch. Mood is good.","time":"Today 12:20 PM","author":"May"}]'),
+  completed: JSON.parse(localStorage.getItem(`${storagePrefix}Completed`) || '{}'),
+  notes: JSON.parse(localStorage.getItem(`${storagePrefix}Notes`) || '[{"type":"Routine update","text":"Mary ate well at lunch and was calm during her afternoon rest.","time":"Today 2:20 PM","author":"Daughter"}]'),
   handoverHistory: storedHandoverHistory,
-  handoverOpen: JSON.parse(localStorage.getItem('careReadyHandoverOpen') || String(storedHandoverHistory.length === 0)),
-  handoverPlan: JSON.parse(localStorage.getItem('careReadyHandoverPlan') || 'null')
+  handoverOpen: JSON.parse(localStorage.getItem(`${storagePrefix}HandoverOpen`) || String(storedHandoverHistory.length === 0)),
+  handoverPlan: JSON.parse(localStorage.getItem(`${storagePrefix}HandoverPlan`) || 'null')
 };
 
 if (!state.handoverPlan) {
@@ -75,15 +87,15 @@ let selectedWeekDay = (new Date().getDay() + 6) % 7;
 const app = document.querySelector('#app');
 
 function save() {
-  localStorage.setItem('careReadyCompleted', JSON.stringify(state.completed));
-  localStorage.setItem('careReadyNotes', JSON.stringify(state.notes));
-  localStorage.setItem('careReadyHandoverHistory', JSON.stringify(state.handoverHistory));
-  localStorage.setItem('careReadyHandoverOpen', JSON.stringify(state.handoverOpen));
-  localStorage.setItem('careReadyHandoverPlan', JSON.stringify(state.handoverPlan));
+  localStorage.setItem(`${storagePrefix}Completed`, JSON.stringify(state.completed));
+  localStorage.setItem(`${storagePrefix}Notes`, JSON.stringify(state.notes));
+  localStorage.setItem(`${storagePrefix}HandoverHistory`, JSON.stringify(state.handoverHistory));
+  localStorage.setItem(`${storagePrefix}HandoverOpen`, JSON.stringify(state.handoverOpen));
+  localStorage.setItem(`${storagePrefix}HandoverPlan`, JSON.stringify(state.handoverPlan));
 }
 
 function currentCaregiver() {
-  return state.handoverHistory.length ? state.handoverHistory[0].to : 'May';
+  return state.handoverHistory.length ? state.handoverHistory[0].to : 'Daughter';
 }
 
 function nextCaregiver(name) {
@@ -155,32 +167,40 @@ function home() {
 }
 
 function profile() {
-  return shell(`${topbar('Mary Tan')}
-    <div class="card"><div class="avatar">M</div><h2>Mary Tan</h2><p>76 years old · Singapore · Lives with her daughter</p><p>Moderate Alzheimer’s disease · Supported by her daughter and a part-time helper</p></div>
-    <div class="section-head"><h2>Daily habits</h2></div>
-    <div class="info-grid">
-      <div class="info-row"><span class="label">Morning</span><strong>Wakes at 7:30 AM and has breakfast at 8 AM.</strong></div>
-      <div class="info-row"><span class="label">Drinks</span><strong>Prefers warm water.</strong></div>
-      <div class="info-row"><span class="label">Communication</span><strong>Use short sentences and explain before helping.</strong></div>
-      <div class="info-row"><span class="label">Comfort</span><strong>Enjoys old Mandarin songs, gardening and watching TV.</strong></div>
+  return shell(`${topbar(persona.name)}
+    <div class="persona-card"><div class="avatar persona-avatar">M</div><div><span class="eyebrow">CARE RECIPIENT · FICTIONAL PERSONA</span><h2>${persona.name}</h2><p>${persona.age} years old · Female · ${persona.location}</p></div></div>
+    <div class="persona-facts"><span>${persona.condition}</span><span>${persona.living}</span><span>Main caregiver: ${persona.mainCaregiver}</span><span>Other caregiver: ${persona.otherCaregiver}</span></div>
+
+    <div class="section-head"><h2>Familiar routines</h2></div>
+    <div class="profile-panel"><p><strong>Comfort:</strong> Mandarin, Chinese home-cooked meals, warm water, old Mandarin songs, gardening and watching TV.</p><p><strong>Routine:</strong> Keep meal and sleep times consistent where possible.</p></div>
+
+    <div class="section-head"><h2>Communication &amp; emotional cues</h2></div>
+    <div class="profile-panel profile-panel-alt"><p>Mary can express basic needs but may struggle to find words. Speak slowly, use short sentences and allow time for her to respond.</p><p>She usually recognizes close family. Unfamiliar people or changes in routine may cause anxiety.</p></div>
+
+    <div class="section-head"><h2>Everyday support</h2></div>
+    <div class="support-map">
+      <article><span>INDEPENDENT</span><p>Walking at home<br>Eating<br>Afternoon rest</p></article>
+      <article><span>REMINDERS / SOME HELP</span><p>Remembering mealtimes<br>Dressing<br>Bathing</p></article>
+      <article><span>ACCOMPANIED / MANAGED</span><p>Going out<br>Medication</p></article>
     </div>
-    <div class="demo-banner">Fictional persona for prototype testing.</div>`, 'home');
+    <p class="profile-note">Support is shown by activity, not as a clinical score. Independent eating may still require reminders or supervision.</p>
+    <div class="demo-banner">Medication details remain placeholders until the family supplies verified instructions.</div>`, 'home');
 }
 
 function taskDetail(id) {
   const task = demoTasks.find(t => t.id === id) || itemTasks.find(t => t.id === id) || demoTasks[0];
   const done = state.completed[task.id];
   return shell(`${topbar(task.name)}
-    ${task.group === 'medication' ? '<div class="demo-banner">Demo medication schedule only.</div>' : ''}
-    <div class="card"><h2>${task.time}</h2><p>${task.meta}</p><div class="detail-line"><span>Status</span><strong>${done ? 'Completed' : 'Not completed'}</strong></div>${done ? `<div class="detail-line"><span>Recorded by</span><strong>${state.completed[task.id].by}</strong></div><div class="detail-line"><span>Recorded at</span><strong>${state.completed[task.id].time}</strong></div>` : ''}</div>
-    <div class="actions">${done ? `<button class="secondary" data-undo="${task.id}">Undo completion</button>` : `<button class="primary" data-complete="${task.id}">Mark as completed</button>`}<button class="secondary" data-route="${task.group === 'medication' ? 'item-medication' : task.group === 'water' ? 'item-water' : 'care-guide'}">${itemTasks.includes(task) ? 'View related item' : 'View care guide'}</button></div>`, 'home');
+    ${task.group === 'medication' ? '<div class="demo-banner">Demo medication schedule only. Verify the medicine, dose and timing before real care use.</div>' : ''}
+    <div class="card">${task.support ? `<span class="support-tag">${task.support}</span>` : ''}<h2>${task.time}</h2><p>${task.meta}</p>${task.guidance ? `<div class="task-guidance"><small>HOW TO SUPPORT MARY</small><p>${task.guidance}</p></div>` : ''}<div class="detail-line"><span>Status</span><strong>${done ? 'Completed' : 'Not completed'}</strong></div>${done ? `<div class="detail-line"><span>Recorded by</span><strong>${state.completed[task.id].by}</strong></div><div class="detail-line"><span>Recorded at</span><strong>${state.completed[task.id].time}</strong></div>` : ''}</div>
+    <div class="actions">${done ? `<button class="secondary" data-undo="${task.id}">Undo completion</button>` : `<button class="primary" data-complete="${task.id}">Mark as completed</button>`}<button class="secondary" data-route="${task.group === 'medication' ? 'item-medication' : task.group === 'water' ? 'item-water' : 'care-guide'}">${task.group === 'medication' || task.group === 'water' ? 'View NFC item guide' : 'View care guide'}</button></div>`, 'home');
 }
 
 function items() {
   return shell(`${topbar('Care items')}
     <div class="item-grid">
-      <button class="item-tile" data-route="item-medication"><span class="item-art" aria-hidden="true">💊</span><strong>Medication</strong><small>Pill container</small></button>
-      <button class="item-tile" data-route="item-water"><span class="item-art" aria-hidden="true">💧</span><strong>Water bottle</strong><small>Warm water</small></button>
+      <button class="item-tile" data-route="item-medication"><span class="item-art" aria-hidden="true">💊</span><strong>Mary's medication</strong><small>NFC tag · Caregiver managed</small></button>
+      <button class="item-tile" data-route="item-water"><span class="item-art" aria-hidden="true">💧</span><strong>Mary's water bottle</strong><small>NFC tag · Warm water</small></button>
     </div>`, 'items');
 }
 
@@ -188,9 +208,9 @@ function itemPage(type) {
   const med = type === 'medication';
   const related = itemTasks.filter(t => t.group === (med ? 'medication' : 'water'));
   return shell(`${topbar(med ? 'Medication' : 'Water bottle')}
-    <div class="item-hero"><div class="item-symbol">${med ? '◇' : '◯'}</div><h1>${med ? 'Medication' : 'Water bottle'}</h1><p>NFC item guide</p></div>
+    <div class="item-hero"><div class="item-symbol">${med ? '◇' : '◯'}</div><h1>${med ? "Mary's medication" : "Mary's water bottle"}</h1><p>NFC item guide · ${med ? 'Managed care' : 'Daily reminder'}</p></div>
     ${med ? '<div class="demo-banner">Demo content only. Confirm the medicine, dose and timing before using this prototype in real care.</div>' : ''}
-    <div class="card"><h3>Care reminder</h3><p>${med ? 'Check the scheduled time and meal instruction. Confirm the correct container before giving any medication.' : 'Mary prefers warm water.'}</p></div>
+    <div class="card"><h3>Care reminder</h3><p>${med ? 'Mary cannot manage medication independently. Check the scheduled time and meal instruction, verify the correct container, and record completion.' : 'Mary prefers warm water in her familiar bottle. Refill it and return it to the usual place within comfortable reach.'}</p><p class="profile-note">${med ? 'If the label, schedule or family instruction does not match, pause and contact the daughter before continuing.' : 'Familiar objects and consistent placement can reduce searching and avoid unnecessary changes to Mary’s routine.'}</p></div>
     <div class="section-head"><h2>Related today</h2></div>
     <div class="task-list">${related.map(taskRow).join('')}</div>`, 'items');
 }
@@ -210,11 +230,12 @@ function notes() {
 
 function careGuide() {
   const cues = [
-    ['💬', 'Conversation', 'Introduce yourself in Mandarin. Speak briefly and wait.'],
-    ['🍚', 'Meals', 'Remind her to start. She eats independently.'],
-    ['🚶', 'Walking', 'Independent at home. Join her 5 pm walk.'],
-    ['💊', 'Medication', 'Managed by her caregiver.'],
-    ['🕒', 'Routine', 'Keep meal and sleep times familiar. Explain changes early.']
+    ['💬', 'Conversation', 'Use Mandarin, short sentences and extra response time.'],
+    ['👋', 'Unfamiliar caregiver', 'Introduce yourself calmly and explain what you are going to do.'],
+    ['🍚', 'Meals', 'Keep familiar meal times. Remind her to start and stay nearby.'],
+    ['🚶', 'Walking', 'Independent at home. Accompany her outdoors on a familiar route.'],
+    ['💊', 'Medication', 'Mary cannot manage medication independently. Verify instructions and record completion.'],
+    ['🕒', 'Routine changes', 'Explain changes early. Watch for anxiety, confusion or a change in mood.']
   ];
   return shell(`${topbar('Care Guide')}
     <header class="guide-intro"><h2>Mary Tan</h2><div class="guide-preferences">
@@ -252,7 +273,7 @@ function week() {
   const day = days[selectedWeekDay];
   const isToday = day.dateKey === localDateKey(new Date());
   const completedCount = isToday ? demoTasks.filter(task => state.completed[task.id]).length : 0;
-  const caregiver = isToday ? currentCaregiver() : ['May', 'May', 'Li', 'Li', 'May', 'Li', 'May'][selectedWeekDay];
+  const caregiver = isToday ? currentCaregiver() : ['Daughter', 'Daughter', 'Part-time helper', 'Daughter', 'Part-time helper', 'Daughter', 'Daughter'][selectedWeekDay];
   const rows = demoTasks.map(task => {
     const done = isToday && state.completed[task.id];
     const content = `<span class="task-name">${task.name}</span><span class="task-meta">${task.meta}</span>`;
@@ -282,7 +303,7 @@ function week() {
     </div>
     <div class="section-head"><h2>Schedule</h2><span class="eyebrow">${isToday ? 'Tap a task for details' : 'Planned tasks'}</span></div>
     <ol class="week-timeline">${rows}</ol>
-    <div class="card week-note"><h3>Daily care notes</h3><p><strong>Medication:</strong> follow the stated meal timing and verify the correct container.</p><p><strong>Water:</strong> offer warm water and return the bottle within comfortable reach.</p><p><strong>Evening:</strong> record any change in mood, comfort or routine for the next caregiver.</p></div>
+    <div class="card week-note"><h3>Mary's care notes</h3><p><strong>Communication:</strong> use short sentences and explain before helping.</p><p><strong>Medication:</strong> caregiver managed; verify the current family instruction and correct container.</p><p><strong>Water:</strong> offer warm water and return the familiar bottle to its usual place.</p><p><strong>Changes:</strong> record any change in mood, orientation or routine for the next caregiver.</p></div>
     <div class="demo-banner">This weekly schedule uses demonstration content. The family must replace it with verified care and medication instructions.</div>`, 'home');
 }
 

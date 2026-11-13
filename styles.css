@@ -396,3 +396,36 @@ button.week-task-card { cursor:pointer; }
 .item-tile:nth-child(2) .item-art { background:#e1e9ed; }
 .item-tile strong { font-size:17px; letter-spacing:-.03em; }
 .item-tile small { color:var(--muted); }
+
+/* Mary Tan persona content, layered onto the current team UI */
+.persona-card {
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:17px;
+  color:white;
+  background:var(--night);
+  border-radius:16px;
+}
+.persona-card h2 { margin:3px 0 2px; font-size:27px; letter-spacing:-.04em; }
+.persona-card p { margin:0; color:#d5d1d9; font-size:13px; }
+.persona-card .eyebrow { color:var(--violet); }
+.persona-avatar { width:54px; height:54px; color:var(--night); background:var(--violet); font-size:21px; }
+.persona-facts { display:flex; flex-wrap:wrap; gap:7px; margin:10px 0 2px; }
+.persona-facts span { padding:6px 9px; border:1px solid var(--line); border-radius:999px; background:var(--surface); color:#514f55; font-size:11px; }
+.profile-panel { padding:15px; border:1px solid #d9c9e7; border-radius:14px; background:#f4eef9; }
+.profile-panel-alt { border-color:#cfd8dd; background:#edf1f3; }
+.profile-panel p { margin:0; font-size:14px; line-height:1.5; }
+.profile-panel p + p { margin-top:8px; }
+.support-map { display:grid; gap:8px; }
+.support-map article { padding:14px; border:1px solid var(--line); border-radius:14px; background:var(--surface); }
+.support-map article:nth-child(1) { border-color:#c8d9d0; background:#edf5f1; }
+.support-map article:nth-child(2) { border-color:#dfd3b5; background:#f8f3e7; }
+.support-map article:nth-child(3) { border-color:#d6cce1; background:#f2edf7; }
+.support-map span { display:block; font-size:11px; font-weight:750; letter-spacing:.04em; }
+.support-map p { margin:7px 0 0; font-size:13px; line-height:1.5; }
+.profile-note { color:var(--muted); font-size:11px; line-height:1.45; }
+.support-tag { display:inline-block; margin-bottom:9px; padding:5px 9px; border-radius:999px; color:#4c355e; background:#e9def3; font-size:11px; font-weight:700; }
+.task-guidance { margin:14px 0 6px; padding:13px; border-radius:12px; background:#e9e5ec; }
+.task-guidance small { color:var(--muted); font-size:10px; font-weight:750; letter-spacing:.04em; }
+.task-guidance p { margin-bottom:0; font-size:13px; }
