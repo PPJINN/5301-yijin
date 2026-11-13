@@ -1,10 +1,57 @@
-const demoTasks = [
+const itemTasks = [
   { id: 'med-am', group: 'medication', name: 'Morning medication', meta: '8:00 AM · After breakfast', time: '8:00 AM', icon: '◇' },
   { id: 'med-noon', group: 'medication', name: 'Afternoon medication', meta: '1:00 PM · After lunch', time: '1:00 PM', icon: '◇' },
   { id: 'water', group: 'water', name: 'Refill water bottle', meta: 'Offer warm water', time: '3:00 PM', icon: '◯' },
   { id: 'med-pm', group: 'medication', name: 'Evening medication', meta: '8:00 PM · After dinner', time: '8:00 PM', icon: '◇' },
   { id: 'check', group: 'check', name: 'Evening check-in', meta: 'Mood and comfort', time: '8:30 PM', icon: '□' }
 ];
+
+const demoTasks = [
+  { id: 'wake', time: '07:30', name: 'Wake up & wash', meta: 'Give Mary a reminder', group: 'morning', icon: '☀' },
+  { id: 'breakfast', time: '08:00', name: 'Breakfast', meta: 'Stay nearby while she eats', group: 'meal', icon: '♨' },
+  { id: 'garden', time: '09:30', name: 'Gardening or light activity', meta: 'Stay nearby', group: 'activity', icon: '✿' },
+  { id: 'lunch', time: '12:30', name: 'Lunch', meta: 'Remind Mary it’s time to eat', group: 'meal', icon: '♨' },
+  { id: 'rest', time: '14:00', name: 'Afternoon rest', meta: 'Independent', group: 'rest', icon: '☾' },
+  { id: 'walk', time: '17:00', name: 'Short walk', meta: 'Go outside with Mary', group: 'activity', icon: '↗' },
+  { id: 'dinner', time: '18:30', name: 'Dinner', meta: 'Stay nearby while she eats', group: 'meal', icon: '♨' },
+  { id: 'bed', time: '21:00', name: 'Prepare for bed', meta: 'Help Mary get ready', group: 'rest', icon: '☾' }
+];
+
+function timelineRow(task) {
+  return `<li class="focus-task">
+    <button class="task-copy" data-task="${task.id}"><time>${task.time}</time><strong>${task.name}</strong><small>${task.meta}</small></button>
+    <label class="task-check"><input type="checkbox" data-toggle="${task.id}" aria-label="Completed: ${task.name}" ${state.completed[task.id] ? 'checked' : ''}></label>
+  </li>`;
+}
+
+function bindTimeline(list) {
+  const rows = [...list.children];
+  const now = new Date();
+  const clock = now.toTimeString().slice(0, 5);
+  const index = Math.max(0, demoTasks.findLastIndex(task => task.time <= clock));
+  const rowHeight = rows[0].offsetHeight;
+  list.scrollTop = index * rowHeight;
+  const animate = window.gsap && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function highlight(immediate) {
+    const position = list.scrollTop / rowHeight;
+    rows.forEach((row, i) => {
+      const opacity = Math.max(0.25, 1 - Math.abs(position - i) * 0.75);
+      if (animate && !immediate) gsap.to(row, { opacity, duration: 0.16, overwrite: true });
+      else row.style.opacity = opacity;
+    });
+  }
+  highlight(true);
+  list.addEventListener('scroll', () => highlight(false), { passive: true });
+  list.addEventListener('change', event => {
+    const input = event.target;
+    const id = input.dataset.toggle;
+    if (!id) return;
+    if (input.checked) state.completed[id] = { by: currentCaregiver(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+    else delete state.completed[id];
+    save();
+    if (animate) gsap.fromTo(input, { scale: 0.82 }, { scale: 1, duration: 0.22 });
+  });
+}
 
 const careTeam = ['May', 'Li', 'Anna'];
 const storedHandoverHistory = JSON.parse(localStorage.getItem('careReadyHandoverHistory') || '[]');
@@ -66,7 +113,7 @@ function shell(content, active = 'home') {
     <nav class="bottom-nav" aria-label="Primary navigation">
       <button class="${active === 'home' ? 'active' : ''}" data-route="home"><span class="nav-icon">⌂</span>Home</button>
       <button class="${active === 'items' ? 'active' : ''}" data-route="items"><span class="nav-icon">▣</span>Items</button>
-      <button class="${active === 'handover' ? 'active' : ''}" data-route="handover"><span class="nav-icon">⇄</span>Handover</button>
+      <button class="${active === 'care-guide' ? 'active' : ''}" data-route="care-guide"><span class="nav-icon">▤</span>Care Guide</button>
     </nav>`;
 }
 
@@ -90,36 +137,45 @@ function notesMarkup(limit) {
 }
 
 function home() {
-  return shell(`${brand()}
-    <button class="profile-link" data-route="profile"><span class="avatar">C</span><strong>Grandma Chen</strong><span class="chevron">›</span></button>
-    <div class="status-strip"><div><span class="label">Current caregiver</span><strong>${currentCaregiver()}</strong></div><div><span class="label">Handover status</span><strong class="status-pill">${state.handoverConfirmed ? `${currentCaregiver()} took over` : 'In progress'}</strong></div></div>
+  const caregiver = currentCaregiver();
+  const previous = state.handoverHistory[0]?.from;
+  const plan = state.handoverPlan;
+  return shell(`<header class="duty-header">
+      <div><small>Current caregiver</small><h1>${caregiver}</h1></div>
+      <button id="duty-status" aria-label="${plan.requested ? 'Review pending handover' : 'On duty. Request handover'}">${plan.requested ? 'Awaiting takeover' : 'On duty'} ›</button>
+    </header>
+    <div class="duty-details">
+      ${previous ? `<div class="resting-caregiver"><span>On break</span><strong>${previous}</strong></div>` : ''}
+      <button data-route="plan-handover"><span>Next handover</span><strong>${state.handoverOpen ? plan.to + ' · ' + formatSchedule(plan.scheduled) : 'Plan next handover'} ›</strong></button>
+      <button data-route="profile"><span>Care recipient</span><strong>Mary Tan ›</strong></button>
+    </div>
     <div class="section-head"><h2>Today</h2><button data-route="week">View week</button></div>
-    <div class="task-list">${demoTasks.map(taskRow).join('')}</div>
+    <ol class="focus-timeline" aria-label="Daily tasks" tabindex="0">${demoTasks.map(timelineRow).join('')}</ol>
     <div class="section-head"><h2>Handover notes</h2><button data-route="notes">View all</button></div>
     ${notesMarkup(1)}
     <div class="actions"><button class="wide-button" data-route="add-note">＋ Add update</button></div>`, 'home');
 }
 
 function profile() {
-  return shell(`${topbar('Grandma Chen')}
-    <div class="card"><div class="avatar">C</div><h2>Grandma Chen</h2><p>78 years old · Family care at home</p></div>
+  return shell(`${topbar('Mary Tan')}
+    <div class="card"><div class="avatar">M</div><h2>Mary Tan</h2><p>76 years old · Singapore · Lives with her daughter</p><p>Moderate Alzheimer’s disease · Supported by her daughter and a part-time helper</p></div>
     <div class="section-head"><h2>Daily habits</h2></div>
     <div class="info-grid">
-      <div class="info-row"><span class="label">Morning</span><strong>Usually wakes around 7:30 AM and prefers a quiet start.</strong></div>
-      <div class="info-row"><span class="label">Drinks</span><strong>Prefers warm water in her familiar bottle.</strong></div>
+      <div class="info-row"><span class="label">Morning</span><strong>Wakes at 7:30 AM and has breakfast at 8 AM.</strong></div>
+      <div class="info-row"><span class="label">Drinks</span><strong>Prefers warm water.</strong></div>
       <div class="info-row"><span class="label">Communication</span><strong>Use short sentences and explain before helping.</strong></div>
-      <div class="info-row"><span class="label">Comfort</span><strong>Family photos and familiar music can help her settle.</strong></div>
+      <div class="info-row"><span class="label">Comfort</span><strong>Enjoys old Mandarin songs, gardening and watching TV.</strong></div>
     </div>
-    <div class="demo-banner">Temporary persona for prototype testing. The family will replace these details with verified information.</div>`, 'home');
+    <div class="demo-banner">Fictional persona for prototype testing.</div>`, 'home');
 }
 
 function taskDetail(id) {
-  const task = demoTasks.find(t => t.id === id) || demoTasks[0];
+  const task = demoTasks.find(t => t.id === id) || itemTasks.find(t => t.id === id) || demoTasks[0];
   const done = state.completed[task.id];
   return shell(`${topbar(task.name)}
-    <div class="demo-banner">Demo schedule only. Real medication instructions must come from the family and a qualified healthcare professional.</div>
+    ${task.group === 'medication' ? '<div class="demo-banner">Demo medication schedule only.</div>' : ''}
     <div class="card"><h2>${task.time}</h2><p>${task.meta}</p><div class="detail-line"><span>Status</span><strong>${done ? 'Completed' : 'Not completed'}</strong></div>${done ? `<div class="detail-line"><span>Recorded by</span><strong>${state.completed[task.id].by}</strong></div><div class="detail-line"><span>Recorded at</span><strong>${state.completed[task.id].time}</strong></div>` : ''}</div>
-    <div class="actions">${done ? `<button class="secondary" data-undo="${task.id}">Undo completion</button>` : `<button class="primary" data-complete="${task.id}">Mark as completed</button>`}<button class="secondary" data-route="${task.group === 'medication' ? 'item-medication' : task.group === 'water' ? 'item-water' : 'home'}">View related item</button></div>`, 'home');
+    <div class="actions">${done ? `<button class="secondary" data-undo="${task.id}">Undo completion</button>` : `<button class="primary" data-complete="${task.id}">Mark as completed</button>`}<button class="secondary" data-route="${task.group === 'medication' ? 'item-medication' : task.group === 'water' ? 'item-water' : 'care-guide'}">${itemTasks.includes(task) ? 'View related item' : 'View care guide'}</button></div>`, 'home');
 }
 
 function items() {
@@ -133,11 +189,11 @@ function items() {
 
 function itemPage(type) {
   const med = type === 'medication';
-  const related = demoTasks.filter(t => t.group === (med ? 'medication' : 'water'));
+  const related = itemTasks.filter(t => t.group === (med ? 'medication' : 'water'));
   return shell(`${topbar(med ? 'Medication' : 'Water bottle')}
     <div class="item-hero"><div class="item-symbol">${med ? '◇' : '◯'}</div><h1>${med ? 'Medication' : 'Water bottle'}</h1><p>NFC item guide</p></div>
     ${med ? '<div class="demo-banner">Demo content only. Confirm the medicine, dose and timing before using this prototype in real care.</div>' : ''}
-    <div class="card"><h3>Care reminder</h3><p>${med ? 'Check the scheduled time and meal instruction. Confirm the correct container before giving any medication.' : 'Grandma Chen prefers warm water. Refill her familiar bottle and place it within comfortable reach.'}</p></div>
+    <div class="card"><h3>Care reminder</h3><p>${med ? 'Check the scheduled time and meal instruction. Confirm the correct container before giving any medication.' : 'Mary prefers warm water.'}</p></div>
     <div class="section-head"><h2>Related today</h2></div>
     <div class="task-list">${related.map(taskRow).join('')}</div>`, 'items');
 }
@@ -148,11 +204,26 @@ function addNote() {
       <div class="field"><label for="note-type">Update type</label><select id="note-type"><option>Unexpected change</option><option>Routine update</option><option>Unfinished task</option><option>Other information</option></select></div>
       <div class="field"><label for="note-text">What should the next caregiver know?</label><textarea id="note-text" required placeholder="What happened, what you did, and what may need follow-up"></textarea></div>
       <button class="primary" type="submit">Save update</button>
-    </form>`, 'handover');
+    </form>`, 'home');
 }
 
 function notes() {
-  return shell(`${topbar('Handover notes')}${notesMarkup()}<div class="actions"><button class="wide-button" data-route="add-note">＋ Add update</button></div>`, 'handover');
+  return shell(`${topbar('Handover notes')}${notesMarkup()}<div class="actions"><button class="wide-button" data-route="add-note">＋ Add update</button></div>`, 'home');
+}
+
+function careGuide() {
+  return shell(`${topbar('Care Guide')}
+    <header class="guide-intro"><h2>Mary Tan</h2><p>Prefers Mandarin, home-cooked Chinese meals and warm water.</p></header>
+    <section class="guide-section"><h3>Meeting Mary</h3><ul>
+      <li>Introduce yourself and explain what comes next.</li>
+      <li>Use short sentences. Give her time to reply.</li>
+    </ul></section>
+    <section class="guide-section"><h3>Everyday support</h3><dl>
+      <div><dt>Meals</dt><dd>Eats independently. May need a reminder to start.</dd></div>
+      <div><dt>Walking</dt><dd>Walks independently at home. Join her for her 5 pm walk outdoors.</dd></div>
+      <div><dt>Medication</dt><dd>A caregiver manages her medication.</dd></div>
+    </dl></section>
+    <section class="guide-section"><h3>Changes to her routine</h3><p>Keep her usual meal and sleep times. Explain changes in advance.</p></section>`, 'care-guide');
 }
 
 function handover() {
@@ -173,7 +244,7 @@ function handover() {
     ${latest ? `<div class="section-head"><h2>Handover record</h2></div><div class="handover-record"><span class="record-mark">✓</span><div><strong>${latest.from} → ${latest.to}</strong><span>${latest.time} · Confirmed by ${latest.to}</span></div></div>` : ''}
     <div class="actions">
       ${state.handoverOpen ? `<button class="primary" id="confirm-handover">Confirm ${plan.to}'s takeover</button>` : `<button class="primary" id="start-next-handover">Plan next handover</button><button class="danger-button" id="undo-handover">Undo last takeover</button><p class="action-help">Undo returns responsibility to ${latest.from}. Task and update records stay unchanged.</p>`}
-    </div>`, 'handover');
+    </div>`, 'home');
 }
 
 function week() {
@@ -249,7 +320,8 @@ function render() {
   else if (route === 'item-water') app.innerHTML = itemPage('water');
   else if (route === 'add-note') app.innerHTML = addNote();
   else if (route === 'notes') app.innerHTML = notes();
-  else if (route === 'handover') app.innerHTML = handover();
+  else if (route === 'care-guide' || route === 'handover') app.innerHTML = careGuide();
+  else if (route === 'plan-handover') app.innerHTML = handover();
   else if (route === 'week') app.innerHTML = week();
   else app.innerHTML = home();
   bind();
@@ -257,6 +329,16 @@ function render() {
 }
 
 function bind() {
+  const dutyStatus = app.querySelector('#duty-status');
+  if (dutyStatus) dutyStatus.addEventListener('click', () => {
+    state.handoverOpen = true;
+    state.handoverConfirmed = false;
+    state.handoverPlan.requested = true;
+    save();
+    go('plan-handover');
+  });
+  const timeline = app.querySelector(".focus-timeline");
+  if (timeline) bindTimeline(timeline);
   document.querySelectorAll('[data-route]').forEach(el => el.addEventListener('click', () => go(el.dataset.route)));
   document.querySelectorAll('[data-task]').forEach(el => el.addEventListener('click', () => go(`task-${el.dataset.task}`)));
   document.querySelectorAll('[data-back]').forEach(el => el.addEventListener('click', () => history.length > 1 ? history.back() : go('home')));
@@ -287,7 +369,7 @@ function bind() {
     state.handoverOpen = false;
     state.handoverConfirmed = true;
     state.handoverPlan = { from: nextName, to: nextCaregiver(nextName), scheduled: defaultScheduleValue() };
-    save(); render(); showToast(`${nextName} is now the current caregiver`);
+    save(); go('home'); showToast(`${nextName} is on duty. ${record.from} is on break.`);
   });
   const startNextHandover = document.querySelector('#start-next-handover');
   if (startNextHandover) startNextHandover.addEventListener('click', () => {
